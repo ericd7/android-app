@@ -74,7 +74,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     /**
      * Draw the game
      */
-    fun draw(canvas: Canvas) {
+
+    override fun draw(canvas: Canvas) {
         super.draw(canvas)
         
         // Clear the screen
