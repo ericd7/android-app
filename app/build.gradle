@@ -4,6 +4,7 @@ plugins {
 }
 
 android {
+    namespace 'com.example.androidgame'
     compileSdk 33
 
     defaultConfig {

@@ -15,20 +15,22 @@ This project follows the standard Android application structure:
   - `layout/`: XML layout files
   - `values/`: String, color, and style definitions
 
-## Getting Started
+## Development Workflow
 
 ### Prerequisites
 
-- Android Studio Arctic Fox (2020.3.1) or newer
+- Android Studio (for building and running)
+- Cursor (for code editing)
 - Android SDK 21 or higher
 - Kotlin 1.8.10 or newer
 
-### Building the Project
+### Workflow
 
-1. Clone this repository
-2. Open the project in Android Studio
-3. Sync the project with Gradle files
-4. Build and run the application on an emulator or physical device
+1. Edit code in Cursor
+2. Open the project in Android Studio to build and run
+3. Test on an emulator or physical device through Android Studio
+
+You can use the `open-in-android-studio.bat` script to quickly open the project in Android Studio.
 
 ## Game Development
 
