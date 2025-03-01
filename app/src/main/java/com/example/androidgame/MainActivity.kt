@@ -19,7 +19,7 @@ class MainActivity : AppCompatActivity() {
     
     private fun setupGame() {
         // Set the game title
-        binding.textGameTitle.text = "Android Game"
+        binding.textGameTitle.text = "Block Shooter"
         
         // Set up button click listeners
         binding.buttonStart.setOnClickListener {
@@ -28,8 +28,16 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
         
+        binding.buttonHighScores.setOnClickListener {
+            // Open high scores screen
+            val intent = Intent(this, HighScoresActivity::class.java)
+            startActivity(intent)
+        }
+        
         binding.buttonSettings.setOnClickListener {
-            // TODO: Open settings screen
+            // Open settings screen
+            val intent = Intent(this, SettingsActivity::class.java)
+            startActivity(intent)
         }
     }
 } 

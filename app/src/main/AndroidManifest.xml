@@ -18,6 +18,12 @@
             android:name=".GameActivity"
             android:exported="false"
             android:theme="@style/Theme.AndroidGame.Fullscreen" />
+        <activity
+            android:name=".HighScoresActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
     </application>
 
 </manifest> 
