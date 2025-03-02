@@ -17,6 +17,7 @@ class GameThread(private val surfaceHolder: SurfaceHolder, private val gameView:
         var startTime: Long
         var timeMillis: Long
         var waitTime: Long
+        var lastFrameTime = System.nanoTime()
         
         while (running) {
             startTime = System.nanoTime()
@@ -26,10 +27,15 @@ class GameThread(private val surfaceHolder: SurfaceHolder, private val gameView:
                 // Get Canvas from Holder and lock it
                 canvas = surfaceHolder.lockCanvas()
                 
+                // Calculate delta time in seconds
+                val currentTime = System.nanoTime()
+                val deltaTime = (currentTime - lastFrameTime) / 1_000_000_000f // Convert nanoseconds to seconds
+                lastFrameTime = currentTime
+                
                 // Synchronized block to avoid data inconsistencies
                 synchronized(surfaceHolder) {
                     // Update game state
-                    gameView.update()
+                    gameView.update(deltaTime)
                     
                     // Render state to the canvas
                     canvas?.let { gameView.draw(it) }
