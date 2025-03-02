@@ -1,55 +1,41 @@
-# Android Game
+# Block Shooter
 
-A simple Android game application template built with Kotlin.
+Block Shooter is a fun and addictive arcade-style game for Android devices inspired by classic brick-breaking games.
 
-## Project Structure
+## About the Game
 
-This project follows the standard Android application structure:
+In Block Shooter, you control a paddle at the bottom of the screen and bounce a ball to break colorful blocks. The game features:
 
-- `app/src/main/java/com/blockshooter/game/`: Contains the Kotlin source code
-  - `MainActivity.kt`: The entry point of the application
-  - `GameActivity.kt`: Hosts the game view
-  - `GameView.kt`: Renders the game and handles user input
-  - `GameThread.kt`: Manages the game loop
-- `app/src/main/res/`: Contains resources like layouts, strings, and drawables
-  - `layout/`: XML layout files
-  - `values/`: String, color, and style definitions
+- Simple touch controls - slide your finger to move the paddle
+- Colorful blocks with alternating patterns
+- Special golden blocks that create chain reactions when hit
+- Increasing difficulty as you play longer
+- New rows of blocks appear periodically, pushing existing blocks down
+- Game over occurs when blocks reach the danger zone near your paddle
 
-## Development Workflow
+## How to Play
 
-### Prerequisites
+1. Tap the screen to start the game
+2. Move your paddle by sliding your finger left and right
+3. Bounce the ball to break blocks and earn points
+4. Regular blocks are worth 10 points
+5. Special golden blocks appear during gameplay (not in the initial setup) and destroy surrounding blocks when hit
+6. Complete a level by breaking all blocks to earn a 100-point bonus
+7. Try to achieve the highest score possible!
 
-- Android Studio (for building and running)
-- Cursor (for code editing)
-- Android SDK 21 or higher
-- Kotlin 1.8.10 or newer
+## Game Features
 
-### Workflow
+- Realistic ball physics with angle-based bouncing
+- Sound effects (can be toggled in settings)
+- High score tracking
+- Increasing difficulty over time
+- Visual indicators for the danger zone
 
-1. Edit code in Cursor
-2. Open the project in Android Studio to build and run
-3. Test on an emulator or physical device through Android Studio
+## Installation
 
-You can use the `open-in-android-studio.bat` script to quickly open the project in Android Studio.
-
-## Game Development
-
-This template provides the basic structure for an Android game:
-
-- A game loop that maintains a consistent frame rate
-- Surface view for efficient rendering
-- Touch event handling
-- Activity lifecycle management
-
-To develop your game:
-
-1. Modify the `GameView.update()` method to update your game state
-2. Modify the `GameView.draw()` method to render your game elements
-3. Add game objects and logic as needed
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+1. Download the APK from the releases section
+2. Install on your Android device (Android 5.0 or higher required)
+3. Enjoy the game!
 
 ## Acknowledgments
 
