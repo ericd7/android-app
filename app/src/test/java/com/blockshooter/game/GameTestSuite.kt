@@ -11,6 +11,7 @@ import org.junit.runners.Suite
     BlockTest::class,
     BallTest::class,
     CollisionTest::class,
-    GameLogicTest::class
+    GameLogicTest::class,
+    GoldBlockChainTest::class
 )
 class GameTestSuite 
