@@ -41,6 +41,7 @@ class GameRenderer(
      * @param isTopScore Whether the current score is a top score
      * @param restartButton The restart button rectangle (for game over screen)
      * @param backButton The back button rectangle (for game over screen)
+     * @param ballWaitingForLaunch Whether the ball is waiting for the player to tap to launch
      */
     fun draw(
         canvas: Canvas,
@@ -53,7 +54,8 @@ class GameRenderer(
         gameOver: Boolean = false,
         isTopScore: Boolean = false,
         restartButton: RectF? = null,
-        backButton: RectF? = null
+        backButton: RectF? = null,
+        ballWaitingForLaunch: Boolean = false
     ) {
         // Apply screen shake effect
         screenShakeEffect.update()
@@ -80,6 +82,11 @@ class GameRenderer(
         // Draw game over screen if needed
         if (gameOver) {
             drawGameOverScreen(canvas, score, isTopScore, restartButton, backButton)
+        }
+        
+        // Draw tap to launch message if ball is waiting for launch
+        if (ballWaitingForLaunch) {
+            drawTapToLaunchMessage(canvas)
         }
         
         // Reset canvas translation from screen shake
@@ -277,5 +284,22 @@ class GameRenderer(
                 paint
             )
         }
+    }
+    
+    /**
+     * Draws a message instructing the player to tap to launch the ball.
+     * 
+     * @param canvas The canvas to draw on
+     */
+    private fun drawTapToLaunchMessage(canvas: Canvas) {
+        // Draw semi-transparent overlay
+        paint.color = Color.argb(100, 0, 0, 0)
+        canvas.drawRect(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat(), paint)
+        
+        // Draw message
+        paint.color = Color.WHITE
+        paint.textSize = 50f
+        paint.textAlign = Paint.Align.CENTER
+        canvas.drawText("TAP TO LAUNCH", canvas.width / 2f, canvas.height / 2f, paint)
     }
 } 

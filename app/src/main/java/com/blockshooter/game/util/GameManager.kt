@@ -27,6 +27,7 @@ class GameManager(
     var gameOver = false
     var isTopScore = false
     var gameOverReported = false
+    var ballWaitingForLaunch = false // Flag to indicate ball is waiting for player tap to launch
     
     // Game objects
     lateinit var paddle: RectF
@@ -84,6 +85,7 @@ class GameManager(
         gameOver = false
         isTopScore = false
         gameOverReported = false
+        ballWaitingForLaunch = false
         currentDifficultyLevel = 0
         
         // Create paddle
@@ -149,11 +151,14 @@ class GameManager(
     fun update(deltaTime: Float) {
         if (!gameRunning || gameOver) return
         
-        // Update ball position
-        ball.update(deltaTime)
-        
-        // Check for collisions
-        checkCollisions()
+        // Only update ball position if not waiting for launch
+        if (!ballWaitingForLaunch) {
+            // Update ball position
+            ball.update(deltaTime)
+            
+            // Check for collisions
+            checkCollisions()
+        }
         
         // Check if it's time to add a new row of blocks
         val currentTime = System.currentTimeMillis()
@@ -161,8 +166,8 @@ class GameManager(
             addNewBlockRow()
             lastBlockAddTime = currentTime
             
-            // Play level up sound
-            soundManager.playLevelUpSound()
+            // Play level up sound - removed to eliminate sound when new rows spawn
+            // soundManager.playLevelUpSound()
         }
         
         // Check if blocks have reached the danger zone
@@ -326,6 +331,9 @@ class GameManager(
                 
                 // Reset X velocity to a random direction
                 ball.velocityX = if (Random.nextBoolean()) 800f else -800f
+                
+                // Set flag to wait for player tap to launch
+                ballWaitingForLaunch = true
             }
             return true
         }
@@ -573,6 +581,19 @@ class GameManager(
         
         // Play game over sound
         soundManager.playGameOverSound()
+    }
+    
+    /**
+     * Launches the ball after player taps when a life is lost.
+     * 
+     * @return True if the ball was waiting for launch and is now launched, false otherwise
+     */
+    fun launchBall(): Boolean {
+        if (ballWaitingForLaunch) {
+            ballWaitingForLaunch = false
+            return true
+        }
+        return false
     }
     
     /**

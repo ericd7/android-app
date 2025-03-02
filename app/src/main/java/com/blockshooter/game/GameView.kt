@@ -191,7 +191,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         
         when (event.action) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+            MotionEvent.ACTION_DOWN -> {
+                // Check if ball is waiting for launch
+                if (gameManager.ballWaitingForLaunch) {
+                    // Launch the ball
+                    gameManager.launchBall()
+                    return true
+                }
+                
+                // Move paddle to touch position
+                gameManager.movePaddle(event.x)
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
                 // Move paddle to touch position
                 gameManager.movePaddle(event.x)
                 return true
@@ -245,7 +257,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 gameManager.gameOver,
                 gameManager.isTopScore,
                 restartButton,
-                backButton
+                backButton,
+                gameManager.ballWaitingForLaunch
             )
         } else {
             // Draw game over or start screen
