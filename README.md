@@ -6,7 +6,7 @@ A simple Android game application template built with Kotlin.
 
 This project follows the standard Android application structure:
 
-- `app/src/main/java/com/example/androidgame/`: Contains the Kotlin source code
+- `app/src/main/java/com/blockshooter/game/`: Contains the Kotlin source code
   - `MainActivity.kt`: The entry point of the application
   - `GameActivity.kt`: Hosts the game view
   - `GameView.kt`: Renders the game and handles user input

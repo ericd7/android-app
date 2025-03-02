@@ -1,4 +1,4 @@
-package com.example.androidgame
+package com.blockshooter.game
 
 import android.os.Bundle
 import android.view.View

@@ -1,4 +1,4 @@
-package com.example.androidgame
+package com.blockshooter.game
 
 import android.graphics.Canvas
 import android.view.SurfaceHolder

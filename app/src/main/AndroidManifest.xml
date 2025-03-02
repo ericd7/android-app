@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.blockshooter.game">
 
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AndroidGame">
+        android:theme="@style/Theme.BlockShooter">
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -17,7 +20,7 @@
         <activity
             android:name=".GameActivity"
             android:exported="false"
-            android:theme="@style/Theme.AndroidGame.Fullscreen" />
+            android:theme="@style/Theme.BlockShooter.Fullscreen" />
         <activity
             android:name=".HighScoresActivity"
             android:exported="false" />

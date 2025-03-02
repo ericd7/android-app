@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.androidgame'
+    namespace 'com.blockshooter.game'
     compileSdk 35
 
     defaultConfig {
-        applicationId "com.example.androidgame"
+        applicationId "com.blockshooter.game"
         minSdk 21
         targetSdk 35
         versionCode 1

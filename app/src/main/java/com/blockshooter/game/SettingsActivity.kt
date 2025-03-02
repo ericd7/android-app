@@ -1,4 +1,4 @@
-package com.example.androidgame
+package com.blockshooter.game
 
 import android.content.Context
 import android.os.Bundle
@@ -6,6 +6,7 @@ import android.widget.Button
 import android.widget.Switch
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.blockshooter.game.databinding.ActivitySettingsBinding
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var soundSwitch: Switch

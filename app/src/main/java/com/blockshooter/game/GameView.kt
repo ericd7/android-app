@@ -1,4 +1,4 @@
-package com.example.androidgame
+package com.blockshooter.game
 
 import android.content.Context
 import android.graphics.Canvas
@@ -11,6 +11,9 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.core.content.ContextCompat
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.random.Random
 
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
@@ -31,8 +34,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var score = 0
     private var lives = 3
     private var lastBlockAddTime = 0L
-    private val blockAddInterval = 10000L // 10 seconds in milliseconds
+    private var gameStartTime = 0L
+    private var blockAddInterval = 8000L // 8 seconds in milliseconds (initial value)
+    private val minBlockAddInterval = 3000L // Minimum interval (3 seconds)
+    private val blockAddIntervalDecreaseRate = 750L // Decrease by 750ms every difficulty increase
+    private val difficultyIncreaseInterval = 20000L // Increase difficulty every 20 seconds
+    private var currentDifficultyLevel = 0
     private var gameOverReported = false
+    private var isTopScore = false // Track if current score is the top score
+    private var totalRowsAdded = 0 // Track total rows added for proper color staggering
     
     // Game over UI elements
     private lateinit var restartButton: RectF
@@ -46,6 +56,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private val primaryColor = ContextCompat.getColor(context, R.color.game_primary)
     private val secondaryColor = ContextCompat.getColor(context, R.color.game_secondary)
     private val accentColor = ContextCompat.getColor(context, R.color.game_accent)
+    private val goldenColor = Color.rgb(255, 215, 0) // Golden color for special blocks
     
     // Game objects
     private lateinit var paddle: RectF
@@ -64,6 +75,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     // Collision handling
     private var lastCollisionTime = 0L
     private val collisionCooldown = 50L // Milliseconds to prevent multiple collisions
+    private val maxBallSpeed = 25f // Maximum ball speed to prevent tunneling
     
     init {
         // Add the callback
@@ -90,6 +102,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         gameOverListener = listener
     }
     
+    // Set if the current score is the top score
+    fun setIsTopScore(topScore: Boolean) {
+        isTopScore = topScore
+    }
+    
     override fun surfaceCreated(holder: SurfaceHolder) {
         // Get screen dimensions
         screenWidth = width
@@ -101,7 +118,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         // Initialize game over UI elements
         val buttonWidth = 200f
         val buttonHeight = 60f
-        val buttonY = screenHeight / 2f + 100f
+        val buttonY = screenHeight / 2f + 150f // Moved down to accommodate high score message
         
         restartButton = RectF(
             screenWidth / 2f - buttonWidth - 20f,
@@ -163,12 +180,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 val right = left + blockWidth
                 val bottom = top + blockHeight
                 
-                // Alternate between primary and accent colors for blocks
-                val blockColor = if ((row + col) % 2 == 0) primaryColor else accentColor
+                // 5% chance for a special golden block
+                val isSpecial = Random.nextInt(20) == 0
                 
-                blocks.add(Block(RectF(left, top, right, bottom), blockColor))
+                // Determine block color
+                val blockColor = when {
+                    isSpecial -> goldenColor
+                    (row + col) % 2 == 0 -> primaryColor
+                    else -> accentColor
+                }
+                
+                blocks.add(Block(RectF(left, top, right, bottom), blockColor, isSpecial))
             }
         }
+        
+        // Reset total rows added since we're starting with a fresh set of blocks
+        totalRowsAdded = blockRows
     }
     
     private fun addNewBlockRow() {
@@ -178,7 +205,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             block.rect.bottom += blockHeight + blockMargin
         }
         
-        // Add new row at the top
+        // Add a new row at the top
         val blockWidth = (screenWidth - (blockCols + 1) * blockMargin) / blockCols
         
         for (col in 0 until blockCols) {
@@ -187,14 +214,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             val right = left + blockWidth
             val bottom = top + blockHeight
             
-            // Alternate colors for new blocks
-            val blockColor = if (col % 2 == 0) primaryColor else accentColor
+            // 5% chance for a special golden block
+            val isSpecial = Random.nextInt(20) == 0
             
-            blocks.add(Block(RectF(left, top, right, bottom), blockColor))
+            // Determine block color
+            val blockColor = when {
+                isSpecial -> goldenColor
+                (totalRowsAdded + col) % 2 == 0 -> primaryColor
+                else -> accentColor
+            }
+            
+            blocks.add(Block(RectF(left, top, right, bottom), blockColor, isSpecial))
         }
         
-        // Check if any blocks have reached the danger zone
-        checkBlocksPosition()
+        // Increment total rows added
+        totalRowsAdded++
     }
     
     private fun checkBlocksPosition() {
@@ -287,11 +321,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     fun update() {
         if (!gameRunning) return
         
-        // Update ball position
-        ball.update()
-        
-        // Check for collisions
-        checkCollisions()
+        // Update ball position with continuous collision detection
+        updateBallWithCollisionDetection()
         
         // Check if all blocks are broken
         if (blocks.isEmpty()) {
@@ -303,6 +334,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             lastBlockAddTime = System.currentTimeMillis()
         }
         
+        // Update difficulty based on elapsed time
+        updateDifficulty()
+        
         // Check if it's time to add a new row of blocks
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastBlockAddTime >= blockAddInterval) {
@@ -311,24 +345,93 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
     
-    private fun checkCollisions() {
-        // Ball collision with screen edges
-        if (ball.x - ball.radius < 0) {
-            // Left edge
-            ball.x = ball.radius
-            ball.velocityX = -ball.velocityX
-        } else if (ball.x + ball.radius > screenWidth) {
-            // Right edge
-            ball.x = screenWidth - ball.radius
-            ball.velocityX = -ball.velocityX
+    /**
+     * Update game difficulty based on elapsed time
+     */
+    private fun updateDifficulty() {
+        val currentTime = System.currentTimeMillis()
+        val elapsedTime = currentTime - gameStartTime
+        
+        // Calculate how many difficulty increases should have occurred
+        val newDifficultyLevel = (elapsedTime / difficultyIncreaseInterval).toInt()
+        
+        // Check if difficulty level has increased
+        if (newDifficultyLevel > currentDifficultyLevel) {
+            // Difficulty has increased
+            currentDifficultyLevel = newDifficultyLevel
         }
         
-        if (ball.y - ball.radius < 0) {
-            // Top edge
+        // Calculate new block add interval based on difficulty level
+        val newInterval = maxOf(
+            minBlockAddInterval,
+            8000L - (currentDifficultyLevel * blockAddIntervalDecreaseRate)
+        )
+        
+        // Only update if the interval has changed
+        if (newInterval < blockAddInterval) {
+            blockAddInterval = newInterval
+        }
+    }
+    
+    private fun updateBallWithCollisionDetection() {
+        // Store original position for collision detection
+        val originalX = ball.x
+        val originalY = ball.y
+        
+        // Cap ball speed to prevent tunneling
+        val speed = Math.sqrt((ball.velocityX * ball.velocityX + ball.velocityY * ball.velocityY).toDouble()).toFloat()
+        if (speed > maxBallSpeed) {
+            val scale = maxBallSpeed / speed
+            ball.velocityX *= scale
+            ball.velocityY *= scale
+        }
+        
+        // Calculate new position
+        val newX = ball.x + ball.velocityX
+        val newY = ball.y + ball.velocityY
+        
+        // Check for screen edge collisions first
+        checkScreenEdgeCollisions(newX, newY)
+        
+        // Check for paddle collision
+        if (checkPaddleCollision(originalX, originalY, ball.x, ball.y)) {
+            return // Ball already handled in paddle collision
+        }
+        
+        // Check for block collisions using ray casting
+        if (checkBlockCollisions(originalX, originalY, ball.x, ball.y)) {
+            return // Ball already handled in block collision
+        }
+        
+        // If no collisions, update ball position
+        ball.x = ball.x + ball.velocityX
+        ball.y = ball.y + ball.velocityY
+    }
+    
+    private fun checkScreenEdgeCollisions(newX: Float, newY: Float) {
+        // Left edge
+        if (newX - ball.radius < 0) {
+            ball.x = ball.radius
+            ball.velocityX = -ball.velocityX
+            return
+        }
+        
+        // Right edge
+        if (newX + ball.radius > screenWidth) {
+            ball.x = screenWidth - ball.radius
+            ball.velocityX = -ball.velocityX
+            return
+        }
+        
+        // Top edge
+        if (newY - ball.radius < 0) {
             ball.y = ball.radius
             ball.velocityY = -ball.velocityY
-        } else if (ball.y + ball.radius > screenHeight) {
-            // Bottom edge - ball lost
+            return
+        }
+        
+        // Bottom edge - ball lost
+        if (newY + ball.radius > screenHeight) {
             lives--
             if (lives <= 0) {
                 endGame()
@@ -346,10 +449,24 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 // Add some randomness to X velocity
                 ball.velocityX = if (Random.nextBoolean()) 16f else -16f
             }
+            return
         }
+    }
+    
+    private fun checkPaddleCollision(startX: Float, startY: Float, endX: Float, endY: Float): Boolean {
+        // Only check for paddle collision if ball is moving downward
+        if (ball.velocityY <= 0) return false
         
-        // Ball collision with paddle
-        if (ball.getBounds().intersect(paddle) && ball.velocityY > 0) {
+        // Create a slightly expanded paddle for better collision detection
+        val expandedPaddle = RectF(
+            paddle.left - ball.radius,
+            paddle.top - ball.radius,
+            paddle.right + ball.radius,
+            paddle.bottom + ball.radius
+        )
+        
+        // Check if the ball's path intersects with the paddle
+        if (lineIntersectsRect(startX, startY, endX, endY, expandedPaddle)) {
             // Play paddle hit sound - lower pitch
             if (soundEnabled) {
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 50)
@@ -372,35 +489,50 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             
             // Ensure ball is above paddle
             ball.y = paddle.top - ball.radius
+            
+            return true
         }
         
+        return false
+    }
+    
+    private fun checkBlockCollisions(startX: Float, startY: Float, endX: Float, endY: Float): Boolean {
         // Check for collision cooldown
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastCollisionTime < collisionCooldown) {
-            return
+            return false
         }
         
-        // Find the closest block that intersects with the ball
-        var closestBlock: Block? = null
-        var minDistance = Float.MAX_VALUE
+        // Find all blocks that might intersect with the ball's path
+        val potentialCollisions = mutableListOf<Pair<Block, Float>>()
         
         for (block in blocks) {
-            if (ball.getBounds().intersect(block.rect)) {
-                val distance = distanceBetween(
-                    ball.x, ball.y,
-                    block.rect.left + (block.rect.right - block.rect.left) / 2,
-                    block.rect.top + (block.rect.bottom - block.rect.top) / 2
-                )
+            // Create a slightly expanded block for better collision detection
+            val expandedBlock = RectF(
+                block.rect.left - ball.radius,
+                block.rect.top - ball.radius,
+                block.rect.right + ball.radius,
+                block.rect.bottom + ball.radius
+            )
+            
+            // Check if the ball's path intersects with the block
+            if (lineIntersectsRect(startX, startY, endX, endY, expandedBlock)) {
+                // Calculate distance to block center for sorting
+                val blockCenterX = block.rect.left + (block.rect.right - block.rect.left) / 2
+                val blockCenterY = block.rect.top + (block.rect.bottom - block.rect.top) / 2
+                val distance = distanceBetween(startX, startY, blockCenterX, blockCenterY)
                 
-                if (distance < minDistance) {
-                    minDistance = distance
-                    closestBlock = block
-                }
+                potentialCollisions.add(Pair(block, distance))
             }
         }
         
+        // Sort by distance to find the closest block
+        potentialCollisions.sortBy { it.second }
+        
         // Handle collision with the closest block
-        closestBlock?.let { block ->
+        if (potentialCollisions.isNotEmpty()) {
+            val closestBlock = potentialCollisions[0].first
+            
             // Play block hit sound - higher pitch
             if (soundEnabled) {
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 50)
@@ -409,22 +541,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             // Determine collision side
             val ballCenterX = ball.x
             val ballCenterY = ball.y
-            val blockCenterX = block.rect.left + (block.rect.right - block.rect.left) / 2
-            val blockCenterY = block.rect.top + (block.rect.bottom - block.rect.top) / 2
+            val blockCenterX = closestBlock.rect.left + (closestBlock.rect.right - closestBlock.rect.left) / 2
+            val blockCenterY = closestBlock.rect.top + (closestBlock.rect.bottom - closestBlock.rect.top) / 2
             
             val dx = ballCenterX - blockCenterX
             val dy = ballCenterY - blockCenterY
             
             // Calculate intersection depths
             val overlapX = if (dx > 0) 
-                block.rect.right - (ball.x - ball.radius)
+                closestBlock.rect.right - (ball.x - ball.radius)
             else
-                (ball.x + ball.radius) - block.rect.left
+                (ball.x + ball.radius) - closestBlock.rect.left
                 
             val overlapY = if (dy > 0)
-                block.rect.bottom - (ball.y - ball.radius)
+                closestBlock.rect.bottom - (ball.y - ball.radius)
             else
-                (ball.y + ball.radius) - block.rect.top
+                (ball.y + ball.radius) - closestBlock.rect.top
             
             // Determine which side was hit based on overlap and velocity
             if (overlapX < overlapY) {
@@ -433,9 +565,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 
                 // Adjust position to prevent sticking
                 if (dx > 0) {
-                    ball.x = block.rect.right + ball.radius
+                    ball.x = closestBlock.rect.right + ball.radius
                 } else {
-                    ball.x = block.rect.left - ball.radius
+                    ball.x = closestBlock.rect.left - ball.radius
                 }
             } else {
                 // Vertical collision
@@ -443,24 +575,123 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 
                 // Adjust position to prevent sticking
                 if (dy > 0) {
-                    ball.y = block.rect.bottom + ball.radius
+                    ball.y = closestBlock.rect.bottom + ball.radius
                 } else {
-                    ball.y = block.rect.top - ball.radius
+                    ball.y = closestBlock.rect.top - ball.radius
                 }
             }
             
-            // Remove block and increase score
-            blocks.remove(block)
-            score += 10
+            // Check if the hit block is a special block
+            if (closestBlock.isSpecial) {
+                // Play special block hit sound - different tone
+                if (soundEnabled) {
+                    toneGenerator?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 100)
+                }
+                
+                // Find and remove adjacent blocks
+                val blocksToRemove = mutableListOf<Block>()
+                blocksToRemove.add(closestBlock)
+                
+                // Find blocks in the expanded area of effect
+                for (block in blocks) {
+                    if (block != closestBlock && isBlockInSpecialRange(closestBlock, block)) {
+                        blocksToRemove.add(block)
+                    }
+                }
+                
+                // Remove all blocks and add score
+                for (block in blocksToRemove) {
+                    blocks.remove(block)
+                    score += 10
+                }
+                
+                // Add bonus points for special block
+                score += 20
+            } else {
+                // Remove regular block and increase score
+                blocks.remove(closestBlock)
+                score += 10
+            }
             
-            // Slightly increase ball speed
+            // Slightly increase ball speed (but not too much to prevent tunneling)
             val speedMultiplier = 1.01f
             ball.velocityX *= speedMultiplier
             ball.velocityY *= speedMultiplier
             
             // Set collision cooldown
             lastCollisionTime = currentTime
+            
+            return true
         }
+        
+        return false
+    }
+    
+    // Helper method to determine if a block is within the special block's expanded range
+    private fun isBlockInSpecialRange(specialBlock: Block, otherBlock: Block): Boolean {
+        // Get block dimensions
+        val blockWidth = specialBlock.rect.width()
+        val blockHeight = specialBlock.rect.height()
+        
+        // Get centers of blocks
+        val center1X = specialBlock.rect.left + blockWidth / 2
+        val center1Y = specialBlock.rect.top + blockHeight / 2
+        val center2X = otherBlock.rect.left + blockWidth / 2
+        val center2Y = otherBlock.rect.top + blockHeight / 2
+        
+        // Calculate distance between centers
+        val distanceX = Math.abs(center1X - center2X)
+        val distanceY = Math.abs(center1Y - center2Y)
+        
+        // Check if block is within 2 blocks distance (horizontally and vertically)
+        return distanceX <= blockWidth * 2.1f && distanceY <= blockHeight * 2.1f
+    }
+    
+    // Helper method to determine if two blocks are adjacent (for regular adjacency checks)
+    private fun isAdjacent(block1: Block, block2: Block): Boolean {
+        // Get block dimensions
+        val blockWidth = block1.rect.width()
+        val blockHeight = block1.rect.height()
+        
+        // Get centers of blocks
+        val center1X = block1.rect.left + blockWidth / 2
+        val center1Y = block1.rect.top + blockHeight / 2
+        val center2X = block2.rect.left + blockWidth / 2
+        val center2Y = block2.rect.top + blockHeight / 2
+        
+        // Calculate distance between centers
+        val distanceX = Math.abs(center1X - center2X)
+        val distanceY = Math.abs(center1Y - center2Y)
+        
+        // Blocks are adjacent if they are one block width/height away (including diagonals)
+        return distanceX <= blockWidth * 1.1f && distanceY <= blockHeight * 1.1f
+    }
+    
+    // Helper method to check if a line intersects with a rectangle
+    private fun lineIntersectsRect(x1: Float, y1: Float, x2: Float, y2: Float, rect: RectF): Boolean {
+        // Check if either endpoint is inside the rectangle
+        if (rect.contains(x1, y1) || rect.contains(x2, y2)) {
+            return true
+        }
+        
+        // Check if the line intersects any of the rectangle's edges
+        return lineIntersectsLine(x1, y1, x2, y2, rect.left, rect.top, rect.right, rect.top) || // Top edge
+               lineIntersectsLine(x1, y1, x2, y2, rect.right, rect.top, rect.right, rect.bottom) || // Right edge
+               lineIntersectsLine(x1, y1, x2, y2, rect.left, rect.bottom, rect.right, rect.bottom) || // Bottom edge
+               lineIntersectsLine(x1, y1, x2, y2, rect.left, rect.top, rect.left, rect.bottom) // Left edge
+    }
+    
+    // Helper method to check if two line segments intersect
+    private fun lineIntersectsLine(x1: Float, y1: Float, x2: Float, y2: Float, 
+                                  x3: Float, y3: Float, x4: Float, y4: Float): Boolean {
+        // Calculate the direction of the lines
+        val uA = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / 
+                 ((y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1))
+        val uB = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / 
+                 ((y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1))
+        
+        // If uA and uB are between 0-1, lines are colliding
+        return uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1
     }
     
     private fun distanceBetween(x1: Float, y1: Float, x2: Float, y2: Float): Float {
@@ -520,8 +751,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             paint.textAlign = Paint.Align.CENTER
             if (lives <= 0) {
                 // Game over screen
-                canvas.drawText("GAME OVER", screenWidth / 2f, screenHeight / 2f - 60f, paint)
-                canvas.drawText("Score: $score", screenWidth / 2f, screenHeight / 2f, paint)
+                canvas.drawText("GAME OVER", screenWidth / 2f, screenHeight / 2f - 120f, paint)
+                canvas.drawText("Score: $score", screenWidth / 2f, screenHeight / 2f - 60f, paint)
+                
+                // Display top score message if applicable
+                if (isTopScore) {
+                    paint.color = Color.YELLOW
+                    paint.textSize = 50f
+                    canvas.drawText("NEW HIGH SCORE!", screenWidth / 2f, screenHeight / 2f, paint)
+                    paint.color = secondaryColor
+                    paint.textSize = 60f
+                }
                 
                 // Draw restart button
                 paint.color = primaryColor
@@ -572,6 +812,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             lives = 3
             initializeGame()
         }
+        
+        // Reset game timers and difficulty
+        gameStartTime = System.currentTimeMillis()
+        lastBlockAddTime = gameStartTime
+        blockAddInterval = 8000L // Reset to initial interval
+        currentDifficultyLevel = 0
+        isTopScore = false // Reset top score flag
+        totalRowsAdded = 0 // Reset total rows added
+        
         gameRunning = true
         gameOverReported = false
     }
@@ -621,5 +870,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
     
     // Block class
-    data class Block(val rect: RectF, val color: Int)
+    data class Block(
+        val rect: RectF, 
+        val color: Int,
+        val isSpecial: Boolean = false
+    )
 } 
