@@ -56,4 +56,23 @@ class BlockTest {
         assertEquals(110f, block.rect.right)
         assertEquals(70f, block.rect.bottom)
     }
+    
+    @Test
+    fun `test block with rainbow color`() {
+        // Test with various rainbow colors
+        val rainbowColors = arrayOf(
+            Color.rgb(255, 0, 0),      // Red
+            Color.rgb(255, 127, 0),    // Orange
+            Color.rgb(255, 255, 0),    // Yellow
+            Color.rgb(0, 255, 0),      // Green
+            Color.rgb(0, 0, 255),      // Blue
+            Color.rgb(75, 0, 130),     // Indigo
+            Color.rgb(148, 0, 211)     // Violet
+        )
+        
+        for (color in rainbowColors) {
+            val block = GameView.Block(testRect, color)
+            assertEquals(color, block.color)
+        }
+    }
 } 

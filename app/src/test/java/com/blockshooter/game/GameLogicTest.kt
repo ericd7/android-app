@@ -124,6 +124,41 @@ class GameLogicTest {
     }
     
     @Test
+    fun `test rainbow color pattern in blocks`() {
+        // Get access to the rainbowColors field
+        val rainbowColorsField = GameView::class.java.getDeclaredField("rainbowColors").apply { isAccessible = true }
+        val rainbowColors = rainbowColorsField.get(gameView) as Array<*>
+        
+        // Create blocks
+        createBlocksMethod.invoke(gameView)
+        
+        // Get blocks
+        val blocks = blocksField.get(gameView) as MutableList<GameView.Block>
+        
+        // Get blockCols and blockRows
+        val blockColsField = GameView::class.java.getDeclaredField("blockCols").apply { isAccessible = true }
+        val blockCols = blockColsField.get(gameView) as Int
+        val blockRowsField = GameView::class.java.getDeclaredField("blockRows").apply { isAccessible = true }
+        val blockRows = blockRowsField.get(gameView) as Int
+        
+        // Verify that blocks in the same row have the same color
+        for (row in 0 until blockRows) {
+            val expectedColor = rainbowColors[row % rainbowColors.size] as Int
+            
+            for (col in 0 until blockCols) {
+                val blockIndex = row * blockCols + col
+                val block = blocks[blockIndex]
+                
+                // Skip special blocks (though there shouldn't be any in initial rows)
+                if (!block.isSpecial) {
+                    assertEquals("Block at row $row, col $col has incorrect color", 
+                                expectedColor, block.color)
+                }
+            }
+        }
+    }
+    
+    @Test
     fun `test add new block row`() {
         // First create initial blocks
         createBlocksMethod.invoke(gameView)
