@@ -588,25 +588,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                     toneGenerator?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 100)
                 }
                 
-                // Find and remove adjacent blocks
-                val blocksToRemove = mutableListOf<Block>()
-                blocksToRemove.add(closestBlock)
-                
-                // Find blocks in the expanded area of effect
-                for (block in blocks) {
-                    if (block != closestBlock && isBlockInSpecialRange(closestBlock, block)) {
-                        blocksToRemove.add(block)
-                    }
-                }
-                
-                // Remove all blocks and add score
-                for (block in blocksToRemove) {
-                    blocks.remove(block)
-                    score += 10
-                }
-                
-                // Add bonus points for special block
-                score += 20
+                // Process the chain reaction of special blocks
+                processSpecialBlockChain(closestBlock)
             } else {
                 // Remove regular block and increase score
                 blocks.remove(closestBlock)
@@ -625,6 +608,57 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
         
         return false
+    }
+    
+    // Helper method to process special block chain reactions
+    private fun processSpecialBlockChain(startBlock: Block) {
+        val processedBlocks = mutableSetOf<Block>()
+        val blocksToProcess = mutableListOf(startBlock)
+        
+        while (blocksToProcess.isNotEmpty()) {
+            val currentBlock = blocksToProcess.removeAt(0)
+            
+            // Skip if already processed
+            if (currentBlock in processedBlocks) continue
+            
+            // Mark as processed
+            processedBlocks.add(currentBlock)
+            
+            // Find blocks in the expanded area of effect
+            val affectedBlocks = mutableListOf<Block>()
+            for (block in blocks) {
+                if (block != currentBlock && block !in processedBlocks && isBlockInSpecialRange(currentBlock, block)) {
+                    affectedBlocks.add(block)
+                    
+                    // If this is another special block, add it to the processing queue
+                    if (block.isSpecial) {
+                        blocksToProcess.add(block)
+                    }
+                }
+            }
+            
+            // Remove the current block and add score
+            blocks.remove(currentBlock)
+            score += 10
+            
+            // Add bonus points for special block
+            if (currentBlock.isSpecial) {
+                score += 20
+                
+                // Play chain reaction sound if not the initial block
+                if (currentBlock != startBlock && soundEnabled) {
+                    toneGenerator?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 100)
+                }
+            }
+            
+            // Remove affected blocks and add score
+            for (block in affectedBlocks) {
+                if (block in blocks) { // Check if still in the list
+                    blocks.remove(block)
+                    score += 10
+                }
+            }
+        }
     }
     
     // Helper method to determine if a block is within the special block's expanded range
