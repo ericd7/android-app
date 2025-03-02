@@ -32,6 +32,7 @@ class GameManager(
     lateinit var paddle: RectF
     lateinit var ball: Ball
     val blocks = mutableListOf<Block>()
+    private val blocksToRemove = mutableListOf<Block>() // List to batch block removals
     
     // Game settings
     private val paddleHeight = 30f
@@ -169,6 +170,12 @@ class GameManager(
         
         // Increase difficulty over time
         updateDifficulty(currentTime)
+        
+        // Remove destroyed blocks in batch
+        if (blocksToRemove.isNotEmpty()) {
+            blocks.removeAll(blocksToRemove)
+            blocksToRemove.clear()
+        }
     }
     
     /**
@@ -254,18 +261,76 @@ class GameManager(
         val newX = ball.x + ball.velocityX * lookAheadFactor
         val newY = ball.y + ball.velocityY * lookAheadFactor
         
+        // Check for wall collisions first (most common and cheapest to check)
+        if (checkWallCollisions(newX, newY)) {
+            return
+        }
+        
         // Check for paddle collision
         if (checkPaddleCollision(startX, startY, newX, newY)) {
             return
         }
         
-        // Check for block collisions
-        if (checkBlockCollisions(startX, startY, newX, newY)) {
-            return
+        // Check for block collisions (most expensive)
+        checkBlockCollisions(startX, startY, newX, newY)
+    }
+    
+    /**
+     * Checks for collisions between the ball and walls.
+     * 
+     * @param newX The ball's new X position
+     * @param newY The ball's new Y position
+     * @return True if a collision occurred, false otherwise
+     */
+    private fun checkWallCollisions(newX: Float, newY: Float): Boolean {
+        // Left edge
+        if (newX - ball.radius < 0) {
+            ball.x = ball.radius
+            ball.velocityX = -ball.velocityX
+            return true
         }
         
-        // Check for wall collisions
-        checkWallCollisions(newX, newY)
+        // Right edge
+        if (newX + ball.radius > screenWidth) {
+            ball.x = screenWidth - ball.radius
+            ball.velocityX = -ball.velocityX
+            return true
+        }
+        
+        // Top edge
+        if (newY - ball.radius < 0) {
+            ball.y = ball.radius
+            ball.velocityY = -ball.velocityY
+            return true
+        }
+        
+        // Bottom edge - ball lost
+        if (newY + ball.radius > screenHeight) {
+            // Create explosion effect when losing a life
+            particleSystem.createLifeLostEffect(ball.x, screenHeight - 50f)
+            
+            // Play sound when losing a life
+            soundManager.playBallLostSound()
+            
+            // Start screen shake effect
+            screenShakeEffect.startScreenShake(20f, 15)
+            
+            lives--
+            if (lives <= 0) {
+                endGame()
+            } else {
+                // Reset ball position
+                ball.x = screenWidth / 2f
+                ball.y = paddle.top - ball.radius - 5f
+                ball.velocityY = -Math.abs(ball.velocityY) // Ensure upward movement
+                
+                // Reset X velocity to a random direction
+                ball.velocityX = if (Random.nextBoolean()) 800f else -800f
+            }
+            return true
+        }
+        
+        return false
     }
     
     /**
@@ -335,12 +400,21 @@ class GameManager(
             return false
         }
         
-        // Find all blocks that might intersect with the ball's path
-        val potentialCollisions = mutableListOf<Pair<Block, Float>>()
+        // Quick check if ball is in the blocks area to avoid unnecessary calculations
+        if (ball.y < blockTopOffset - ball.radius || ball.y > screenHeight - dangerZone + blockHeight) {
+            return false
+        }
+        
+        // Find closest block that might intersect with the ball's path
+        var closestBlock: Block? = null
+        var closestDistance = Float.MAX_VALUE
         
         try {
             for (block in blocks) {
                 if (block.isDestroyed) continue
+                
+                // Quick bounding box check before more expensive intersection test
+                if (!isInBlockArea(ball, block)) continue
                 
                 // Check if the ball's path intersects with this block
                 if (CollisionUtils.lineIntersectsRect(startX, startY, endX, endY, block.rect)) {
@@ -350,17 +424,15 @@ class GameManager(
                     val distance = (startX - blockCenterX) * (startX - blockCenterX) +
                             (startY - blockCenterY) * (startY - blockCenterY)
                     
-                    potentialCollisions.add(Pair(block, distance))
+                    if (distance < closestDistance) {
+                        closestDistance = distance
+                        closestBlock = block
+                    }
                 }
             }
             
-            // Sort by distance (closest first)
-            potentialCollisions.sortBy { it.second }
-            
             // Handle the closest collision
-            if (potentialCollisions.isNotEmpty()) {
-                val block = potentialCollisions[0].first
-                
+            closestBlock?.let { block ->
                 // Determine which side of the block was hit
                 val side = CollisionUtils.getCollisionSide(ball, block)
                 
@@ -382,6 +454,7 @@ class GameManager(
                 
                 // Mark block as destroyed
                 block.isDestroyed = true
+                blocksToRemove.add(block)
                 
                 // Add score
                 score += if (block.isSpecial) 50 else 10
@@ -397,9 +470,6 @@ class GameManager(
                 // Update collision time
                 lastCollisionTime = currentTime
                 
-                // Remove destroyed blocks
-                blocks.removeAll { it.isDestroyed }
-                
                 return true
             }
         } catch (e: Exception) {
@@ -408,6 +478,17 @@ class GameManager(
         }
         
         return false
+    }
+    
+    /**
+     * Quick check if ball is in the area of a block
+     */
+    private fun isInBlockArea(ball: Ball, block: Block): Boolean {
+        // Expanded block area by ball radius for collision check
+        return ball.x + ball.radius >= block.rect.left &&
+               ball.x - ball.radius <= block.rect.right &&
+               ball.y + ball.radius >= block.rect.top &&
+               ball.y - ball.radius <= block.rect.bottom
     }
     
     /**
@@ -432,6 +513,7 @@ class GameManager(
         for (block in adjacentBlocks) {
             // Mark block as destroyed
             block.isDestroyed = true
+            blocksToRemove.add(block)
             
             // Create particles
             val blockCenterX = block.rect.left + (block.rect.right - block.rect.left) / 2
@@ -467,61 +549,6 @@ class GameManager(
         
         // Check if the blocks are adjacent (allowing for a small gap)
         return distanceX <= sumHalfWidths * 1.2f && distanceY <= sumHalfHeights * 1.2f
-    }
-    
-    /**
-     * Checks for collisions between the ball and walls.
-     * 
-     * @param newX The ball's new X position
-     * @param newY The ball's new Y position
-     */
-    private fun checkWallCollisions(newX: Float, newY: Float) {
-        // Left edge
-        if (newX - ball.radius < 0) {
-            ball.x = ball.radius
-            ball.velocityX = -ball.velocityX
-            return
-        }
-        
-        // Right edge
-        if (newX + ball.radius > screenWidth) {
-            ball.x = screenWidth - ball.radius
-            ball.velocityX = -ball.velocityX
-            return
-        }
-        
-        // Top edge
-        if (newY - ball.radius < 0) {
-            ball.y = ball.radius
-            ball.velocityY = -ball.velocityY
-            return
-        }
-        
-        // Bottom edge - ball lost
-        if (newY + ball.radius > screenHeight) {
-            // Create explosion effect when losing a life
-            particleSystem.createLifeLostEffect(ball.x, screenHeight - 50f)
-            
-            // Play sound when losing a life
-            soundManager.playBallLostSound()
-            
-            // Start screen shake effect
-            screenShakeEffect.startScreenShake(20f, 15)
-            
-            lives--
-            if (lives <= 0) {
-                endGame()
-            } else {
-                // Reset ball position
-                ball.x = screenWidth / 2f
-                ball.y = paddle.top - ball.radius - 5f
-                ball.velocityY = -Math.abs(ball.velocityY) // Ensure upward movement
-                
-                // Reset X velocity to a random direction
-                ball.velocityX = if (Random.nextBoolean()) 800f else -800f
-            }
-            return
-        }
     }
     
     /**

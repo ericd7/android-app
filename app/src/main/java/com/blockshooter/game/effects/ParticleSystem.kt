@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.random.Random
 
@@ -20,6 +21,9 @@ class ParticleSystem {
     // Particle collection and pool
     private val particles = CopyOnWriteArrayList<Particle>()
     private val particlePool = ArrayList<Particle>(100) // Particle pool to reuse objects
+    
+    // Thread pool for particle creation
+    private val particleExecutor = Executors.newSingleThreadExecutor()
     
     init {
         // Pre-populate the particle pool
@@ -61,8 +65,10 @@ class ParticleSystem {
      */
     private fun recycleParticle(particle: Particle) {
         // Only add to pool if it's not too large
-        if (particlePool.size < 100) {
-            particlePool.add(particle)
+        synchronized(particlePool) {
+            if (particlePool.size < 100) {
+                particlePool.add(particle)
+            }
         }
     }
     
@@ -71,12 +77,14 @@ class ParticleSystem {
      */
     private fun recycleAllParticles() {
         // Add particles back to pool and clear active list
-        for (particle in particles) {
-            if (particlePool.size < 100) {
-                particlePool.add(particle)
+        synchronized(particlePool) {
+            for (particle in particles) {
+                if (particlePool.size < 100) {
+                    particlePool.add(particle)
+                }
             }
+            particles.clear()
         }
-        particles.clear()
     }
     
     /**
@@ -84,15 +92,17 @@ class ParticleSystem {
      */
     private fun obtainParticle(x: Float, y: Float, velocityX: Float, velocityY: Float, color: Int, life: Int): Particle {
         // Try to get from pool first
-        if (particlePool.isNotEmpty()) {
-            val particle = particlePool.removeAt(particlePool.size - 1)
-            particle.x = x
-            particle.y = y
-            particle.velocityX = velocityX
-            particle.velocityY = velocityY
-            particle.color = color
-            particle.life = life
-            return particle
+        synchronized(particlePool) {
+            if (particlePool.isNotEmpty()) {
+                val particle = particlePool.removeAt(particlePool.size - 1)
+                particle.x = x
+                particle.y = y
+                particle.velocityX = velocityX
+                particle.velocityY = velocityY
+                particle.color = color
+                particle.life = life
+                return particle
+            }
         }
         
         // Create new if pool is empty
@@ -122,16 +132,28 @@ class ParticleSystem {
         // Limit particles if we already have too many
         if (particles.size > 200) return
         
-        for (i in 0 until particleCount) {
-            val angle = Random.nextDouble(0.0, Math.PI * 2).toFloat()
-            // Ensure minimum speed to prevent stationary particles
-            val speed = Random.nextFloat() * particleMaxSpeed + 100f
-            val velocityX = Math.cos(angle.toDouble()).toFloat() * speed
-            val velocityY = Math.sin(angle.toDouble()).toFloat() * speed
-            
-            // Get particle from pool instead of creating new
-            val particle = obtainParticle(x, y, velocityX, velocityY, color, particleLifespan)
-            particles.add(particle)
+        // Create particles on background thread
+        particleExecutor.execute {
+            try {
+                val newParticles = ArrayList<Particle>(particleCount)
+                
+                for (i in 0 until particleCount) {
+                    val angle = Random.nextDouble(0.0, Math.PI * 2).toFloat()
+                    // Ensure minimum speed to prevent stationary particles
+                    val speed = Random.nextFloat() * particleMaxSpeed + 100f
+                    val velocityX = Math.cos(angle.toDouble()).toFloat() * speed
+                    val velocityY = Math.sin(angle.toDouble()).toFloat() * speed
+                    
+                    // Get particle from pool instead of creating new
+                    val particle = obtainParticle(x, y, velocityX, velocityY, color, particleLifespan)
+                    newParticles.add(particle)
+                }
+                
+                // Add all particles at once to reduce contention
+                particles.addAll(newParticles)
+            } catch (e: Exception) {
+                // Ignore exceptions in background thread
+            }
         }
     }
     
@@ -148,17 +170,29 @@ class ParticleSystem {
         // Limit particles if we already have too many
         if (particles.size > 150) return
         
-        // Create more particles for a bigger explosion, but limit to 2 waves instead of 3
-        for (i in 0 until 2) {
-            for (j in 0 until particleCount) {
-                val angle = Random.nextDouble(0.0, Math.PI * 2).toFloat()
-                val speed = Random.nextFloat() * particleMaxSpeed * 1.5f + 150f // Ensure minimum speed
-                val velocityX = Math.cos(angle.toDouble()).toFloat() * speed
-                val velocityY = Math.sin(angle.toDouble()).toFloat() * speed
+        // Create particles on background thread
+        particleExecutor.execute {
+            try {
+                val newParticles = ArrayList<Particle>(particleCount * 2)
                 
-                // Get particle from pool instead of creating new
-                val particle = obtainParticle(x, y, velocityX, velocityY, redColor, particleLifespan * 2)
-                particles.add(particle)
+                // Create more particles for a bigger explosion, but limit to 2 waves instead of 3
+                for (i in 0 until 2) {
+                    for (j in 0 until particleCount) {
+                        val angle = Random.nextDouble(0.0, Math.PI * 2).toFloat()
+                        val speed = Random.nextFloat() * particleMaxSpeed * 1.5f + 150f // Ensure minimum speed
+                        val velocityX = Math.cos(angle.toDouble()).toFloat() * speed
+                        val velocityY = Math.sin(angle.toDouble()).toFloat() * speed
+                        
+                        // Get particle from pool instead of creating new
+                        val particle = obtainParticle(x, y, velocityX, velocityY, redColor, particleLifespan * 2)
+                        newParticles.add(particle)
+                    }
+                }
+                
+                // Add all particles at once to reduce contention
+                particles.addAll(newParticles)
+            } catch (e: Exception) {
+                // Ignore exceptions in background thread
             }
         }
     }
@@ -177,6 +211,13 @@ class ParticleSystem {
      */
     fun getParticleCount(): Int {
         return particles.size
+    }
+    
+    /**
+     * Cleans up resources when the system is shutting down.
+     */
+    fun cleanup() {
+        particleExecutor.shutdown()
     }
     
     /**

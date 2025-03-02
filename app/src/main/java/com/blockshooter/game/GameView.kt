@@ -331,6 +331,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         toneGenerator?.release()
         toneGenerator = null
         soundManager.release()
+        particleSystem.cleanup()
         gameManager.cleanup()
     }
 } 
