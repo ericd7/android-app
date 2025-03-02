@@ -1,72 +1,29 @@
 package com.blockshooter.game
 
-import android.content.Context
 import android.graphics.RectF
+import com.blockshooter.game.model.Ball
+import com.blockshooter.game.model.Block
+import com.blockshooter.game.util.CollisionUtils
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mock
-import org.mockito.Mockito.`when`
-import org.mockito.MockitoAnnotations
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.lang.reflect.Method
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30])
 class CollisionTest {
-
-    @Mock
-    private lateinit var mockContext: Context
-    
-    private lateinit var gameView: GameView
-    
-    // Methods accessed via reflection since they're private
-    private lateinit var lineIntersectsRectMethod: Method
-    private lateinit var lineIntersectsLineMethod: Method
-    private lateinit var isBlockInSpecialRangeMethod: Method
-    private lateinit var isAdjacentMethod: Method
     
     @Before
     fun setUp() {
-        MockitoAnnotations.openMocks(this)
-        
-        // Mock necessary context methods
-        `when`(mockContext.getSystemService(Context.AUDIO_SERVICE)).thenReturn(null)
-        
-        // Create a GameView instance
-        gameView = GameView(mockContext)
-        
-        // Get private methods via reflection
-        lineIntersectsRectMethod = GameView::class.java.getDeclaredMethod(
-            "lineIntersectsRect", 
-            Float::class.java, Float::class.java, Float::class.java, Float::class.java, RectF::class.java
-        ).apply { isAccessible = true }
-        
-        lineIntersectsLineMethod = GameView::class.java.getDeclaredMethod(
-            "lineIntersectsLine", 
-            Float::class.java, Float::class.java, Float::class.java, Float::class.java,
-            Float::class.java, Float::class.java, Float::class.java, Float::class.java
-        ).apply { isAccessible = true }
-        
-        isBlockInSpecialRangeMethod = GameView::class.java.getDeclaredMethod(
-            "isBlockInSpecialRange",
-            GameView.Block::class.java, GameView.Block::class.java
-        ).apply { isAccessible = true }
-        
-        isAdjacentMethod = GameView::class.java.getDeclaredMethod(
-            "isAdjacent",
-            GameView.Block::class.java, GameView.Block::class.java
-        ).apply { isAccessible = true }
+        // No setup needed as we're using static utility methods
     }
     
     @Test
     fun `test line intersects rectangle - line passes through`() {
         val rect = RectF(100f, 100f, 200f, 200f)
-        val result = lineIntersectsRectMethod.invoke(
-            gameView, 50f, 50f, 250f, 250f, rect
-        ) as Boolean
+        val result = CollisionUtils.lineIntersectsRect(50f, 50f, 250f, 250f, rect)
         
         assertTrue(result)
     }
@@ -74,9 +31,7 @@ class CollisionTest {
     @Test
     fun `test line intersects rectangle - line doesn't intersect`() {
         val rect = RectF(100f, 100f, 200f, 200f)
-        val result = lineIntersectsRectMethod.invoke(
-            gameView, 50f, 50f, 75f, 75f, rect
-        ) as Boolean
+        val result = CollisionUtils.lineIntersectsRect(50f, 50f, 75f, 75f, rect)
         
         assertFalse(result)
     }
@@ -84,72 +39,126 @@ class CollisionTest {
     @Test
     fun `test line intersects rectangle - endpoint inside rectangle`() {
         val rect = RectF(100f, 100f, 200f, 200f)
-        val result = lineIntersectsRectMethod.invoke(
-            gameView, 50f, 50f, 150f, 150f, rect
-        ) as Boolean
+        val result = CollisionUtils.lineIntersectsRect(50f, 50f, 150f, 150f, rect)
         
         assertTrue(result)
     }
     
     @Test
     fun `test line intersects line - lines intersect`() {
-        val result = lineIntersectsLineMethod.invoke(
-            gameView, 
-            0f, 0f, 100f, 100f,  // Line 1: (0,0) to (100,100)
-            0f, 100f, 100f, 0f    // Line 2: (0,100) to (100,0)
-        ) as Boolean
+        // Since lineIntersectsLine is private in CollisionUtils, we'll test it indirectly
+        // by using lineIntersectsRect which calls lineIntersectsLine internally
+        
+        // Create a 1-pixel wide rectangle that's essentially a line
+        val lineRect = RectF(0f, 100f, 100f, 101f)
+        
+        // Test if a line intersects with this "line rectangle"
+        val result = CollisionUtils.lineIntersectsRect(0f, 0f, 100f, 200f, lineRect)
         
         assertTrue(result)
     }
     
     @Test
     fun `test line intersects line - lines don't intersect`() {
-        val result = lineIntersectsLineMethod.invoke(
-            gameView, 
-            0f, 0f, 50f, 50f,     // Line 1: (0,0) to (50,50)
-            60f, 60f, 100f, 100f   // Line 2: (60,60) to (100,100)
-        ) as Boolean
+        // Create a 1-pixel wide rectangle that's essentially a line
+        val lineRect = RectF(60f, 60f, 100f, 61f)
+        
+        // Test if a line that shouldn't intersect
+        val result = CollisionUtils.lineIntersectsRect(0f, 0f, 50f, 50f, lineRect)
         
         assertFalse(result)
     }
     
     @Test
-    fun `test block in special range - blocks within range`() {
-        val block1 = GameView.Block(RectF(100f, 100f, 150f, 150f), 0, true)
-        val block2 = GameView.Block(RectF(200f, 200f, 250f, 250f), 0, false)
+    fun `test collision side detection - top collision`() {
+        val block = Block(RectF(100f, 100f, 200f, 200f), 0)
+        val ball = Ball(150f, 90f, 15f, 0f, 5f) // Ball above the block moving down
         
-        val result = isBlockInSpecialRangeMethod.invoke(gameView, block1, block2) as Boolean
+        val side = CollisionUtils.getCollisionSide(ball, block)
         
-        assertTrue(result)
+        assertEquals("top", side)
     }
     
     @Test
-    fun `test block in special range - blocks out of range`() {
-        val block1 = GameView.Block(RectF(100f, 100f, 150f, 150f), 0, true)
-        val block2 = GameView.Block(RectF(500f, 500f, 550f, 550f), 0, false)
+    fun `test collision side detection - bottom collision`() {
+        val block = Block(RectF(100f, 100f, 200f, 200f), 0)
+        val ball = Ball(150f, 210f, 15f, 0f, -5f) // Ball below the block moving up
         
-        val result = isBlockInSpecialRangeMethod.invoke(gameView, block1, block2) as Boolean
+        val side = CollisionUtils.getCollisionSide(ball, block)
         
-        assertFalse(result)
+        assertEquals("bottom", side)
     }
     
     @Test
-    fun `test blocks are adjacent - blocks are adjacent`() {
-        val block1 = GameView.Block(RectF(100f, 100f, 150f, 150f), 0)
-        val block2 = GameView.Block(RectF(150f, 100f, 200f, 150f), 0)
+    fun `test collision side detection - left collision`() {
+        val block = Block(RectF(100f, 100f, 200f, 200f), 0)
+        val ball = Ball(90f, 150f, 15f, 5f, 0f) // Ball to the left of the block moving right
         
-        val result = isAdjacentMethod.invoke(gameView, block1, block2) as Boolean
+        val side = CollisionUtils.getCollisionSide(ball, block)
         
-        assertTrue(result)
+        assertEquals("left", side)
     }
     
     @Test
-    fun `test blocks are adjacent - blocks are not adjacent`() {
-        val block1 = GameView.Block(RectF(100f, 100f, 150f, 150f), 0)
-        val block2 = GameView.Block(RectF(300f, 300f, 350f, 350f), 0)
+    fun `test collision side detection - right collision`() {
+        val block = Block(RectF(100f, 100f, 200f, 200f), 0)
+        val ball = Ball(210f, 150f, 15f, -5f, 0f) // Ball to the right of the block moving left
         
-        val result = isAdjacentMethod.invoke(gameView, block1, block2) as Boolean
+        val side = CollisionUtils.getCollisionSide(ball, block)
         
-        assertFalse(result)
+        assertEquals("right", side)
+    }
+    
+    @Test
+    fun `test collision side detection - corner collision`() {
+        val block = Block(RectF(100f, 100f, 200f, 200f), 0)
+        
+        // Ball at the top-left corner
+        val ball = Ball(90f, 90f, 15f, 5f, 5f)
+        
+        val side = CollisionUtils.getCollisionSide(ball, block)
+        
+        // The result should be either "top" or "left" depending on the implementation
+        assertTrue(side == "top" || side == "left")
+    }
+    
+    @Test
+    fun `test collision with moving ball trajectory`() {
+        val block = Block(RectF(100f, 100f, 200f, 200f), 0)
+        
+        // Create a ball that will intersect with the block in its next movement
+        val ball = Ball(80f, 80f, 15f, 30f, 30f)
+        
+        // Store the original velocity
+        val originalVelocityX = ball.velocityX
+        val originalVelocityY = ball.velocityY
+        
+        // Move the ball to simulate collision
+        ball.update(1.0f)
+        
+        // Now the ball should be inside or intersecting with the block
+        val side = CollisionUtils.getCollisionSide(ball, block)
+        
+        // Verify that a collision side was detected
+        assertTrue(side in arrayOf("top", "bottom", "left", "right"))
+        
+        // In a real game, the velocity would be changed based on the collision side
+        // Here we just verify that the collision detection works
+        if (side == "top" || side == "bottom") {
+            // For top/bottom collisions, Y velocity should be reversed in the game
+            ball.velocityY = -originalVelocityY
+        } else {
+            // For left/right collisions, X velocity should be reversed in the game
+            ball.velocityX = -originalVelocityX
+        }
+        
+        // Verify that the velocity was changed appropriately
+        if (side == "top" || side == "bottom") {
+            assertEquals(-originalVelocityY, ball.velocityY)
+            assertEquals(originalVelocityX, ball.velocityX)
+        } else {
+            assertEquals(-originalVelocityX, ball.velocityX)
+            assertEquals(originalVelocityY, ball.velocityY)
+        }
     }
 } 

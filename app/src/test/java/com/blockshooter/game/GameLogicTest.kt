@@ -2,12 +2,16 @@ package com.blockshooter.game
 
 import android.content.Context
 import android.graphics.RectF
+import com.blockshooter.game.model.Block
+import com.blockshooter.game.util.GameManager
+import com.blockshooter.game.effects.ParticleSystem
+import com.blockshooter.game.effects.ScreenShakeEffect
+import com.blockshooter.game.effects.SoundManager
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
-import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -19,214 +23,310 @@ import java.lang.reflect.Method
 class GameLogicTest {
 
     @Mock
-    private lateinit var mockContext: Context
+    private lateinit var particleSystem: ParticleSystem
     
-    private lateinit var gameView: GameView
+    @Mock
+    private lateinit var screenShakeEffect: ScreenShakeEffect
     
-    // Fields accessed via reflection
-    private lateinit var scoreField: Field
-    private lateinit var livesField: Field
-    private lateinit var gameRunningField: Field
-    private lateinit var blocksField: Field
-    private lateinit var totalRowsAddedField: Field
+    @Mock
+    private lateinit var soundManager: SoundManager
     
-    // Methods accessed via reflection
-    private lateinit var startGameMethod: Method
+    private lateinit var gameManager: GameManager
     private lateinit var endGameMethod: Method
-    private lateinit var createBlocksMethod: Method
     private lateinit var addNewBlockRowMethod: Method
+    private lateinit var checkBlocksPositionMethod: Method
+    
+    // Screen dimensions for testing
+    private val screenWidth = 800
+    private val screenHeight = 1200
     
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         
-        // Mock necessary context methods
-        `when`(mockContext.getSystemService(Context.AUDIO_SERVICE)).thenReturn(null)
+        // Create a GameManager instance with mocked dependencies
+        gameManager = GameManager(screenWidth, screenHeight, particleSystem, screenShakeEffect, soundManager)
         
-        // Create a GameView instance
-        gameView = GameView(mockContext)
+        // Get access to private methods via reflection
+        endGameMethod = GameManager::class.java.getDeclaredMethod("endGame")
+        endGameMethod.isAccessible = true
         
-        // Get private fields via reflection
-        scoreField = GameView::class.java.getDeclaredField("score").apply { isAccessible = true }
-        livesField = GameView::class.java.getDeclaredField("lives").apply { isAccessible = true }
-        gameRunningField = GameView::class.java.getDeclaredField("gameRunning").apply { isAccessible = true }
-        blocksField = GameView::class.java.getDeclaredField("blocks").apply { isAccessible = true }
-        totalRowsAddedField = GameView::class.java.getDeclaredField("totalRowsAdded").apply { isAccessible = true }
+        addNewBlockRowMethod = GameManager::class.java.getDeclaredMethod("addNewBlockRow")
+        addNewBlockRowMethod.isAccessible = true
         
-        // Get methods via reflection
-        startGameMethod = GameView::class.java.getDeclaredMethod("startGame").apply { isAccessible = true }
-        endGameMethod = GameView::class.java.getDeclaredMethod("endGame").apply { isAccessible = true }
-        createBlocksMethod = GameView::class.java.getDeclaredMethod("createBlocks").apply { isAccessible = true }
-        addNewBlockRowMethod = GameView::class.java.getDeclaredMethod("addNewBlockRow").apply { isAccessible = true }
+        checkBlocksPositionMethod = GameManager::class.java.getDeclaredMethod("checkBlocksPosition")
+        checkBlocksPositionMethod.isAccessible = true
+    }
+    
+    /**
+     * Helper method to simulate what GameView.startGame() does
+     */
+    private fun startGame() {
+        gameManager.initGame()
+        gameManager.gameRunning = true
+    }
+    
+    /**
+     * Helper method to simulate losing a life
+     */
+    private fun loseLife() {
+        gameManager.lives--
+        if (gameManager.lives <= 0) {
+            // Call the endGame method via reflection
+            endGameMethod.invoke(gameManager)
+        } else {
+            // Reset ball position (similar to what happens in GameManager)
+            gameManager.ball.x = screenWidth / 2f
+            gameManager.ball.y = gameManager.paddle.top - gameManager.ball.radius - 5f
+            gameManager.ball.velocityY = -Math.abs(gameManager.ball.velocityY)
+        }
+    }
+    
+    /**
+     * Helper method to add a new row of blocks
+     */
+    private fun addNewBlockRow() {
+        addNewBlockRowMethod.invoke(gameManager)
     }
     
     @Test
     fun `test game initialization`() {
-        // Check initial game state
-        assertEquals(0, scoreField.get(gameView))
-        assertEquals(3, livesField.get(gameView))
-        assertFalse(gameRunningField.get(gameView) as Boolean)
+        // Verify initial game state
+        assertFalse(gameManager.gameRunning)
+        assertEquals(0, gameManager.score)
+        assertEquals(3, gameManager.lives)
+        assertFalse(gameManager.gameOver)
         
-        // Get blocks list
-        val blocks = blocksField.get(gameView) as MutableList<*>
-        assertTrue(blocks.isEmpty())
-    }
-    
-    @Test
-    fun `test start game`() {
         // Start the game
-        startGameMethod.invoke(gameView)
+        startGame()
         
-        // Check game state after starting
-        assertTrue(gameRunningField.get(gameView) as Boolean)
-        assertEquals(0, scoreField.get(gameView))
-        assertEquals(3, livesField.get(gameView))
-        assertEquals(0, totalRowsAddedField.get(gameView))
+        // Verify game is running
+        assertTrue(gameManager.gameRunning)
+        assertEquals(0, gameManager.score)
+        assertEquals(3, gameManager.lives)
+        assertFalse(gameManager.gameOver)
         
-        // Check that blocks were created
-        val blocks = blocksField.get(gameView) as MutableList<*>
-        assertFalse(blocks.isEmpty())
+        // Verify blocks were created
+        assertTrue(gameManager.blocks.isNotEmpty())
     }
     
     @Test
-    fun `test end game`() {
-        // Start the game first
-        startGameMethod.invoke(gameView)
-        assertTrue(gameRunningField.get(gameView) as Boolean)
+    fun `test game over`() {
+        // Start the game
+        startGame()
         
-        // End the game
-        endGameMethod.invoke(gameView)
+        // Set lives to 1
+        gameManager.lives = 1
         
-        // Check game state after ending
-        assertFalse(gameRunningField.get(gameView) as Boolean)
+        // Lose a life
+        loseLife()
+        
+        // Verify game is over
+        assertTrue(gameManager.gameOver)
+        assertFalse(gameManager.gameRunning)
     }
     
     @Test
-    fun `test create blocks`() {
-        // Create blocks
-        createBlocksMethod.invoke(gameView)
+    fun `test score increases when block is destroyed`() {
+        // Start the game
+        startGame()
         
-        // Check that blocks were created
-        val blocks = blocksField.get(gameView) as MutableList<*>
-        assertFalse(blocks.isEmpty())
+        // Clear existing blocks
+        gameManager.blocks.clear()
         
-        // Check that totalRowsAdded was set
-        val blockRowsField = GameView::class.java.getDeclaredField("blockRows").apply { isAccessible = true }
-        val blockRows = blockRowsField.get(gameView) as Int
-        assertEquals(blockRows, totalRowsAddedField.get(gameView))
+        // Add a test block
+        val testBlock = Block(RectF(100f, 100f, 150f, 150f), 0)
+        gameManager.blocks.add(testBlock)
         
-        // Verify no special blocks in initial rows
-        val anySpecialBlocks = blocks.any { 
-            val block = it as GameView.Block
-            block.isSpecial
-        }
-        assertFalse(anySpecialBlocks)
+        // Initial score
+        val initialScore = gameManager.score
+        
+        // Mark the block as destroyed
+        testBlock.isDestroyed = true
+        
+        // Update the game to process the destroyed block
+        gameManager.update(0.016f)
+        
+        // Verify score increased
+        assertTrue(gameManager.score > initialScore)
+        
+        // Verify block was removed
+        assertTrue(gameManager.blocks.isEmpty())
     }
     
     @Test
-    fun `test rainbow color pattern in blocks`() {
-        // Get access to the rainbowColors field
-        val rainbowColorsField = GameView::class.java.getDeclaredField("rainbowColors").apply { isAccessible = true }
-        val rainbowColors = rainbowColorsField.get(gameView) as Array<*>
+    fun `test special block gives bonus points`() {
+        // Start the game
+        startGame()
         
-        // Create blocks
-        createBlocksMethod.invoke(gameView)
+        // Clear existing blocks
+        gameManager.blocks.clear()
         
-        // Get blocks
-        val blocks = blocksField.get(gameView) as MutableList<GameView.Block>
+        // Add a regular block and a special block
+        val regularBlock = Block(RectF(100f, 100f, 150f, 150f), 0)
+        val specialBlock = Block(RectF(200f, 200f, 250f, 250f), 0, true)
         
-        // Get blockCols and blockRows
-        val blockColsField = GameView::class.java.getDeclaredField("blockCols").apply { isAccessible = true }
-        val blockCols = blockColsField.get(gameView) as Int
-        val blockRowsField = GameView::class.java.getDeclaredField("blockRows").apply { isAccessible = true }
-        val blockRows = blockRowsField.get(gameView) as Int
+        gameManager.blocks.add(regularBlock)
+        gameManager.blocks.add(specialBlock)
         
-        // Verify that blocks in the same row have the same color
-        for (row in 0 until blockRows) {
-            val expectedColor = rainbowColors[row % rainbowColors.size] as Int
-            
-            for (col in 0 until blockCols) {
-                val blockIndex = row * blockCols + col
-                val block = blocks[blockIndex]
-                
-                // Skip special blocks (though there shouldn't be any in initial rows)
-                if (!block.isSpecial) {
-                    assertEquals("Block at row $row, col $col has incorrect color", 
-                                expectedColor, block.color)
-                }
-            }
-        }
+        // Mark blocks as destroyed
+        regularBlock.isDestroyed = true
+        
+        // Update to process the regular block
+        gameManager.update(0.016f)
+        
+        // Store score after regular block
+        val scoreAfterRegularBlock = gameManager.score
+        
+        // Mark special block as destroyed
+        specialBlock.isDestroyed = true
+        
+        // Update to process the special block
+        gameManager.update(0.016f)
+        
+        // Calculate score difference
+        val regularBlockPoints = scoreAfterRegularBlock
+        val specialBlockPoints = gameManager.score - scoreAfterRegularBlock
+        
+        // Verify special block gives more points
+        assertTrue(specialBlockPoints > regularBlockPoints)
     }
     
     @Test
-    fun `test add new block row`() {
-        // First create initial blocks
-        createBlocksMethod.invoke(gameView)
+    fun `test adding new block row`() {
+        // Start the game
+        startGame()
         
-        // Get initial block count
-        val blocks = blocksField.get(gameView) as MutableList<*>
-        val initialBlockCount = blocks.size
+        // Clear existing blocks
+        gameManager.blocks.clear()
         
-        // Get initial totalRowsAdded
-        val initialTotalRowsAdded = totalRowsAddedField.get(gameView) as Int
+        // Add a new row of blocks
+        addNewBlockRow()
         
-        // Add a new row
-        addNewBlockRowMethod.invoke(gameView)
+        // Verify blocks were added
+        assertTrue(gameManager.blocks.isNotEmpty())
         
-        // Check that blocks were added
-        val newBlockCount = blocks.size
-        val blockColsField = GameView::class.java.getDeclaredField("blockCols").apply { isAccessible = true }
-        val blockCols = blockColsField.get(gameView) as Int
+        // Count blocks in the row
+        val blockCount = gameManager.blocks.size
         
-        assertEquals(initialBlockCount + blockCols, newBlockCount)
+        // Add another row
+        addNewBlockRow()
         
-        // Check that totalRowsAdded was incremented
-        assertEquals(initialTotalRowsAdded + 1, totalRowsAddedField.get(gameView))
+        // Verify more blocks were added
+        assertEquals(blockCount * 2, gameManager.blocks.size)
     }
     
     @Test
-    fun `test score increases when blocks are removed`() {
-        // Start with a clean game
-        startGameMethod.invoke(gameView)
+    fun `test losing a life`() {
+        // Start the game
+        startGame()
         
-        // Set initial score
-        scoreField.set(gameView, 0)
+        // Initial lives
+        val initialLives = gameManager.lives
         
-        // Get access to the checkBlockCollisions method
-        val checkBlockCollisionsMethod = GameView::class.java.getDeclaredMethod(
-            "checkBlockCollisions",
-            Float::class.java, Float::class.java, Float::class.java, Float::class.java
-        ).apply { isAccessible = true }
+        // Lose a life
+        loseLife()
         
-        // Get access to the ball field
-        val ballField = GameView::class.java.getDeclaredField("ball").apply { isAccessible = true }
+        // Verify lives decreased
+        assertEquals(initialLives - 1, gameManager.lives)
         
-        // Get the blocks
-        val blocks = blocksField.get(gameView) as MutableList<GameView.Block>
+        // Verify game is still running
+        assertTrue(gameManager.gameRunning)
+    }
+    
+    @Test
+    fun `test ball waiting for launch`() {
+        // Start the game
+        startGame()
         
-        // Ensure we have blocks
-        assertFalse(blocks.isEmpty())
+        // Set ball waiting for launch
+        gameManager.ballWaitingForLaunch = true
         
-        // Get the first block's position
-        val firstBlock = blocks[0]
-        val blockCenterX = firstBlock.rect.left + (firstBlock.rect.right - firstBlock.rect.left) / 2
-        val blockCenterY = firstBlock.rect.top + (firstBlock.rect.bottom - firstBlock.rect.top) / 2
+        // Store initial ball position
+        val initialX = gameManager.ball.x
+        val initialY = gameManager.ball.y
         
-        // Set the ball's position to collide with the block
-        val ball = ballField.get(gameView) as GameView.Ball
-        ball.x = blockCenterX
-        ball.y = blockCenterY + 30f // Position below the block
-        ball.velocityY = -10f // Moving upward
+        // Update the game
+        gameManager.update(0.016f)
         
-        // Simulate collision detection
-        checkBlockCollisionsMethod.invoke(
-            gameView,
-            ball.x, ball.y, // Start position
-            ball.x, ball.y - 10f // End position (moving upward)
+        // Ball position should not change when waiting for launch
+        assertEquals(initialX, gameManager.ball.x)
+        assertEquals(initialY, gameManager.ball.y)
+        
+        // Now allow the ball to move
+        gameManager.ballWaitingForLaunch = false
+        
+        // Update the game
+        gameManager.update(0.016f)
+        
+        // Ball position should now change
+        assertNotEquals(initialX, gameManager.ball.x)
+        assertNotEquals(initialY, gameManager.ball.y)
+    }
+    
+    @Test
+    fun `test difficulty progression`() {
+        // Start the game
+        startGame()
+        
+        // Use reflection to access private fields
+        val blockAddIntervalField = GameManager::class.java.getDeclaredField("blockAddInterval")
+        blockAddIntervalField.isAccessible = true
+        
+        val currentDifficultyLevelField = GameManager::class.java.getDeclaredField("currentDifficultyLevel")
+        currentDifficultyLevelField.isAccessible = true
+        
+        val gameStartTimeField = GameManager::class.java.getDeclaredField("gameStartTime")
+        gameStartTimeField.isAccessible = true
+        
+        // Get initial values
+        val initialBlockAddInterval = blockAddIntervalField.getLong(gameManager)
+        val initialDifficultyLevel = currentDifficultyLevelField.getInt(gameManager)
+        
+        // Set game start time to 30 seconds ago to trigger difficulty increase
+        val currentTime = System.currentTimeMillis()
+        gameStartTimeField.setLong(gameManager, currentTime - 30000)
+        
+        // Update difficulty
+        val updateDifficultyMethod = GameManager::class.java.getDeclaredMethod("updateDifficulty", Long::class.java)
+        updateDifficultyMethod.isAccessible = true
+        updateDifficultyMethod.invoke(gameManager, currentTime)
+        
+        // Get updated values
+        val updatedBlockAddInterval = blockAddIntervalField.getLong(gameManager)
+        val updatedDifficultyLevel = currentDifficultyLevelField.getInt(gameManager)
+        
+        // Verify difficulty increased
+        assertTrue(updatedDifficultyLevel > initialDifficultyLevel)
+        
+        // Verify block add interval decreased (game gets harder)
+        assertTrue(updatedBlockAddInterval < initialBlockAddInterval)
+    }
+    
+    @Test
+    fun `test blocks reaching danger zone`() {
+        // Start the game
+        startGame()
+        
+        // Clear existing blocks
+        gameManager.blocks.clear()
+        
+        // Add a block in the danger zone
+        val dangerZoneField = GameManager::class.java.getDeclaredField("dangerZone")
+        dangerZoneField.isAccessible = true
+        val dangerZone = dangerZoneField.getFloat(gameManager)
+        
+        val dangerBlock = Block(
+            RectF(100f, screenHeight - dangerZone + 10f, 150f, screenHeight - dangerZone + 50f),
+            0
         )
+        gameManager.blocks.add(dangerBlock)
         
-        // Check that score increased
-        val newScore = scoreField.get(gameView) as Int
-        assertTrue(newScore > 0)
+        // Check blocks position
+        checkBlocksPositionMethod.invoke(gameManager)
+        
+        // Verify game is over
+        assertTrue(gameManager.gameOver)
+        assertEquals(0, gameManager.lives)
     }
-} 
+}
