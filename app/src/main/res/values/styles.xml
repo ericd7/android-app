@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/game_primary</item>
+        <item name="colorPrimaryDark">@color/game_primary_dark</item>
+        <item name="colorAccent">@color/game_accent</item>
+        <item name="android:fontFamily">sans-serif</item> <!-- This is Roboto on Android -->
+        <item name="fontFamily">sans-serif</item> <!-- For support library compatibility -->
+    </style>
+    
+    <!-- Text styles -->
+    <style name="TextAppearance.Game.Title" parent="TextAppearance.AppCompat.Large">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">36sp</item>
+        <item name="android:textColor">@color/game_secondary</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    
+    <style name="TextAppearance.Game.Button" parent="TextAppearance.AppCompat.Button">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="fontFamily">sans-serif</item>
+        <item name="android:textSize">22sp</item>
+    </style>
+    
+    <style name="TextAppearance.Game.Score" parent="TextAppearance.AppCompat.Medium">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:textColor">@color/game_secondary</item>
+    </style>
+    
+    <style name="TextAppearance.Game.HighScore" parent="TextAppearance.AppCompat.Medium">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="fontFamily">sans-serif</item>
+        <item name="android:textSize">18sp</item>
+    </style>
+</resources> 

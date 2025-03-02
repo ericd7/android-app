@@ -13,6 +13,14 @@
         <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
         <!-- Customize your theme here. -->
         <item name="android:windowBackground">@color/game_background</item>
+        
+        <!-- Font family -->
+        <item name="android:fontFamily">sans-serif</item> <!-- This is Roboto on Android -->
+        <item name="fontFamily">sans-serif</item> <!-- For support library compatibility -->
+        
+        <!-- Default text appearances -->
+        <item name="textAppearanceHeadline1">@style/TextAppearance.Game.Title</item>
+        <item name="textAppearanceButton">@style/TextAppearance.Game.Button</item>
     </style>
     
     <!-- Fullscreen game theme -->

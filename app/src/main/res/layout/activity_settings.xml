@@ -13,9 +13,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
         android:text="@string/settings"
-        android:textColor="@color/game_secondary"
-        android:textSize="32sp"
-        android:textStyle="bold"
+        android:textAppearance="@style/TextAppearance.Game.Title"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -44,8 +42,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Game Sounds"
+                android:textAppearance="@style/TextAppearance.Game.HighScore"
                 android:textColor="@color/game_secondary"
-                android:textSize="18sp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
@@ -71,8 +69,8 @@
         android:layout_marginBottom="32dp"
         android:backgroundTint="@color/game_accent"
         android:text="Save"
+        android:textAppearance="@style/TextAppearance.Game.Button"
         android:textColor="@color/game_secondary"
-        android:textSize="18sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent" />

@@ -11,6 +11,7 @@
     <!-- Game colors -->
     <color name="game_background">#121212</color>
     <color name="game_primary">#00A650</color> <!-- Primary green -->
+    <color name="game_primary_dark">#007A3D</color> <!-- Darker version of primary green for status bar -->
     <color name="game_secondary">#FFFFFF</color> <!-- White -->
     <color name="game_accent">#004B1C</color> <!-- Darker green for accents -->
 </resources> 
