@@ -90,6 +90,7 @@ class HighScoreAdapter(private val scores: List<HighScore>) :
         val rankText: TextView = view.findViewById(R.id.textRank)
         val scoreText: TextView = view.findViewById(R.id.textScore)
         val dateText: TextView = view.findViewById(R.id.textDate)
+        val cardView: androidx.cardview.widget.CardView = view as androidx.cardview.widget.CardView
     }
     
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -103,6 +104,22 @@ class HighScoreAdapter(private val scores: List<HighScore>) :
         holder.rankText.text = "#${position + 1}"
         holder.scoreText.text = "${highScore.score}"
         holder.dateText.text = highScore.date
+        
+        // Alternate between green and white backgrounds
+        val context = holder.itemView.context
+        if (position % 2 == 0) {
+            // Even positions - use green background
+            holder.cardView.setCardBackgroundColor(context.getColor(R.color.game_primary))
+            holder.rankText.setTextColor(context.getColor(R.color.game_secondary))
+            holder.scoreText.setTextColor(context.getColor(R.color.game_secondary))
+            holder.dateText.setTextColor(context.getColor(R.color.game_secondary))
+        } else {
+            // Odd positions - use white background
+            holder.cardView.setCardBackgroundColor(context.getColor(R.color.white))
+            holder.rankText.setTextColor(context.getColor(R.color.game_primary))
+            holder.scoreText.setTextColor(context.getColor(R.color.game_primary))
+            holder.dateText.setTextColor(context.getColor(R.color.game_primary))
+        }
     }
     
     override fun getItemCount() = scores.size
