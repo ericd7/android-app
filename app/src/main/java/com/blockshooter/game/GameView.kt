@@ -180,8 +180,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 val right = left + blockWidth
                 val bottom = top + blockHeight
                 
-                // 5% chance for a special golden block
-                val isSpecial = Random.nextInt(20) == 0
+                // No special blocks in initial rows - removed the random check
+                val isSpecial = false
                 
                 // Determine block color
                 val blockColor = when {
